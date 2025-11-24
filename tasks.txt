@@ -1,0 +1,2 @@
+- Ecrire la partie "Options du programme" (cf. description projet)
+- Ecrire les fonctions manager, process, network, ... ???
