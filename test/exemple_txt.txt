@@ -1,5 +1,5 @@
-PID:PPID:STATE:USER:%PROC:%MEM:CMD
+PID:PPID:STATE:USER:%PROC:%MEM:TPS_EXEC_MMS:CMD
 
 Exemple d'une ligne (= un processus)
 
-4582:258:S:aymeric_dgx:1.15:2.57:/user/aydeg/home/ls -l
+4582:258:S:aymeric_dgx:1.15:2.57:12564:/user/aydeg/home/ls -l
