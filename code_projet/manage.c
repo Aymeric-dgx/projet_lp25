@@ -47,7 +47,7 @@ L'option -l ou --login
 
 */
 
-int main(int argc, char* argv ()) {
+int main(int argc, char* argv []) {
 
 
 
