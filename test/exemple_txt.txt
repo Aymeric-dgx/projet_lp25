@@ -1,0 +1,5 @@
+PID:PPID:STATE:USER:%PROC:%MEM:CMD
+
+Exemple d'une ligne (= un processus)
+
+4582:258:S:aymeric_dgx:1.15:2.57:/user/aydeg/home/ls -l
