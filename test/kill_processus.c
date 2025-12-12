@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
 
 
 
-    if(can_signal(pid) == 0){
+    if(can_signal(pid)){
         // Pause le processus
         kill(pid, SIGSTOP);
         printf("Processus mis en pause\n");
@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
 
     sleep(5);
 
-    if(can_signal(pid2) == 0) {
+    if(can_signal(pid2)) {
         // Arrete le processus (un peu comme CTRL+C)s
         kill(pid, SIGTERM);
         printf("Processus stoppé (comme CTRL+C)\n");
