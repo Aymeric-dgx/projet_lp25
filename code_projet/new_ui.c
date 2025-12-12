@@ -8,7 +8,14 @@
 
 #include "header.h"
 
+/* 
+NOTE IMPORTANTE
+Lorsque tu récupère dans le .txt les données d'un processus, vérifie que la ligne est "complète"
+Càd que il n'a pas été stoppé pour x ou y raison et que tu ai une ligne de ce style : 
+1958:1445:S:de        (et donc sans tout le rest de la ligne)
 
+PS : C'était à cause de ça que avant de rendre le projet, j'avais parfois des erreurs
+*/
 
 // Prototypes
 void ui(const char main_filename[], int *stop_prog);
