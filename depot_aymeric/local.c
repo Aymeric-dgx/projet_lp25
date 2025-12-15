@@ -44,7 +44,7 @@ void local(const char buffer_file[], const char main_file[]) {
     // Ouverture du dossier /proc
     DIR* proc_dir = opendir("/proc");
     if(!proc_dir) {
-        write_error("Erreur de opendir /proc dans local()");
+        write_error("Erreur de opendir /proc dans local()", errno);
         return;
     }
     struct dirent* sub_directory;
@@ -53,7 +53,7 @@ void local(const char buffer_file[], const char main_file[]) {
     float global_mem_size;
     FILE* proc_meminfo_file = fopen("/proc/meminfo", "r");
     if(!proc_meminfo_file) {
-        write_error("Erreur avec fopen() de proc_memeinfo_info dans local()");
+        write_error("Erreur avec fopen() de proc_memeinfo_info dans local()", errno);
         return;
     }
     fgets(line, sizeof(line), proc_meminfo_file);
@@ -65,7 +65,7 @@ void local(const char buffer_file[], const char main_file[]) {
     // 1ere boucle pour récupérer les valeurs "statiques" : PID, PPID, STATE, %MEM, CMD, LIFETIME + création dynamique du tableai Proc* list_proc
     Proc* proc_list = calloc(10, sizeof(Proc));
     if(!proc_list) {
-        write_error("Erreur dans le calloc() de proc_list dans local()");
+        write_error("Erreur dans le calloc() de proc_list dans local()", errno);
         return;
     }
     int uid; // Pour trouver le user, en faisant user = getpwuid(uid)
@@ -82,7 +82,7 @@ void local(const char buffer_file[], const char main_file[]) {
             snprintf(loc, sizeof(loc), "/proc/%s/status", sub_directory->d_name);
             FILE* status_file = fopen(loc, "r");
             if(!status_file) {
-                write_error("Erreur avec fopen() de status_file");
+                write_error("Erreur avec fopen() de status_file", errno);
                 continue;
             }
 
@@ -109,7 +109,7 @@ void local(const char buffer_file[], const char main_file[]) {
             snprintf(loc, sizeof(loc), "/proc/%s/cmdline", sub_directory->d_name);
             FILE* cmd_file = fopen(loc, "r");
             if(!cmd_file) {
-                write_error("Erreur avec fopen() de cmd_file dans local()");
+                write_error("Erreur avec fopen() de cmd_file dans local()", errno);
                 continue;
             }
             fgets(line, sizeof(line), cmd_file);
@@ -133,7 +133,7 @@ void local(const char buffer_file[], const char main_file[]) {
                 nb_proc_added += 10;
                 proc_list = realloc(proc_list, nb_proc_added * sizeof(Proc));
                 if (!proc_list) { 
-                    write_error("Erreur avec le realloc de proc_list dans local()");
+                    write_error("Erreur avec le realloc de proc_list dans local()", errno);
                     return; 
                 }
             }
@@ -172,7 +172,7 @@ double get_uptim_system() {
     double uptime_system_sec; // Directement en sec
     FILE* proc_uptime_file = fopen("/proc/uptime", "r");
     if(!proc_uptime_file) {
-        write_error("Erreur avec le fopen() de proc_uptime_file dans get_uptime_system() dans local()");
+        write_error("Erreur avec le fopen() de proc_uptime_file dans get_uptime_system() dans local()", errno);
         return 0;
     }
 
@@ -191,7 +191,7 @@ unsigned long get_proc_startime(int pid) {
     sprintf(loc, "/proc/%d/stat", pid);
     FILE* proc_pid_stat_file = fopen(loc, "r");
     if(!proc_pid_stat_file) {
-        write_error("Error by trying to open /proc/pid/stat in get_proc_startime(int pid)");
+        write_error("Error by trying to open /proc/pid/stat in get_proc_startime(int pid)", errno);
         return 0;
     }
 
@@ -221,7 +221,7 @@ unsigned long get_proc_lifetime(int pid) {
 unsigned long get_cpus_ticks() {
     FILE* proc_stat_file = fopen("/proc/stat", "r");
     if(!proc_stat_file) {
-        write_error("Erreur avec le fopen du /proc/stat dans get_cpus_ticks()");
+        write_error("Erreur avec le fopen du /proc/stat dans get_cpus_ticks()", errno);
         return 1;
     }
     char line[512];
@@ -244,7 +244,7 @@ unsigned long get_proc_ticks(int pid) {
     snprintf(line, sizeof(line), "/proc/%d/stat", pid);
     FILE* proc_pid_stat_file = fopen(line, "r");
     if(!proc_pid_stat_file) {
-        write_error("Erreur avec le fopen du /proc/pid/stat dans get_proc_ticks()");
+        write_error("Erreur avec le fopen du /proc/pid/stat dans get_proc_ticks()", errno);
         return 1;
     }
 
@@ -265,7 +265,7 @@ void get_all_cpu_rate_procs(Proc* proc_list) {
 
     DIR* proc_dir = opendir("/proc");
     if(!proc_dir) {
-        write_error("Erreur avec le opend d /proc dans get_all_cpu_rate_procs()");
+        write_error("Erreur avec le opend d /proc dans get_all_cpu_rate_procs()", errno);
         return;
     }
     struct dirent* sub_directory;
@@ -316,7 +316,7 @@ void get_all_cpu_rate_procs(Proc* proc_list) {
 void write_procs_in_txt(const char buffer_file[], Proc* proc_list, int nb_procs) {
     FILE* file = fopen(buffer_file, "w+");
     if(!file) {
-        write_error("Erreur avec le fopen de file dans write_procs_in_txt()");
+        write_error("Erreur avec le fopen de file dans write_procs_in_txt()", errno);
         return;
     }
     
