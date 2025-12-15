@@ -18,11 +18,15 @@ const char main_file[] = "procs_list.txt";
 const char buffer_file[] = "buffer_procs_list.txt"; // A "recopier" dans le main_file grâce à rename (car quasi instantanné)
 const char errors_file[] = "errors_saving.txt"; // Fichier commun à tout les programme et réinitialiser à chaque lancement du .exe (pour éviter les printf qui causerai des bugs à cause des conflit entre les printf et l'afficahge ncursives)
 
+volatile int stop_prog = 0; // Variable "globale" permettant de terminer proprement les threads une fois que l'utilisateur arrete le prog depuis ui()
+
 
 // Prototypes des fonctions pour les thread
 void* local_thread(void* arg);
 void* ui_thread(void* arg);
-void write_error(const char error_msg[]);
+void write_error(const char error_msg[], int err);
+
+
 
 
 
@@ -36,15 +40,15 @@ int main(int argc, char* argv[]) {
     pthread_t local_th_id;
     pthread_t ui_th_id;
 
-    // Création du thread qui LOCAL
+    // Création du thread LOCAL
     if (pthread_create(&local_th_id, NULL, local_thread, NULL) != 0) {
-        write_error("Erreur lors de la création du thread de LOCAL");
+        write_error("Erreur lors de la création du thread de LOCAL", errno);
         return 1;
     }
 
     // Création du thread UI
     if (pthread_create(&ui_th_id, NULL, ui_thread, NULL) != 0) {
-        write_error("Erreur lors de la création du thread de UI");
+        write_error("Erreur lors de la création du thread de UI", errno);
         return 1;
     }
 
@@ -65,7 +69,7 @@ int main(int argc, char* argv[]) {
 // Thread qui exécute local()
 void* local_thread(void* arg) {
     struct timespec t = { .tv_sec = 1, .tv_nsec = 0 };
-    while(1) {
+    while(!stop_prog) {
         local(buffer_file, main_file);  
         nanosleep(&t, NULL);
     }
@@ -74,17 +78,24 @@ void* local_thread(void* arg) {
 
 // Thread qui exécute ui()
 void* ui_thread(void* arg) {
-    ui(main_file);  // ta fonction existante
+    ui(main_file, &stop_prog);
     return NULL;
 }
 
 
 
+
+
+
 // Fonction pour écrire dans le fichier "errrors_saving.txt"
-void write_error(const char error_msg[]) {
+void write_error(const char error_msg[], int err) {
+    pthread_mutex_lock(&error_mutex);
+
     FILE *file = fopen(errors_file, "a");
-    if(file != NULL) {
-        fprintf(file, "%s : %s\n", error_msg, strerror(errno));
+    if (file != NULL) {
+        fprintf(file, "%s : %s\n", error_msg, strerror(err));
         fclose(file);
     }
+
+    pthread_mutex_unlock(&error_mutex);
 }
