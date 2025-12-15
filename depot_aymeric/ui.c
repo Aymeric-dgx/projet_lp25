@@ -21,12 +21,10 @@ PS : C'était à cause de ça que avant de rendre le projet, j'avais parfois des
 */
 
 // Prototypes
-void ui(const char main_filename[], int *stop_prog);
 void draw_header();
+void draw_procs();
 void draw_footpage(); // + prévoir une section pour les msg d'erreur ou lors de la recherche de processus
-void proc_kill_management(int pid_to_sign, int signal); // Y compris avec l'affichage des msg d'erreur en "live". NB : singal = SIGKILL, SIGTERM, ...
-int can_signal(int pid); // Si retourne : 1 --> OK, -1 --> Pas l'accès, -2 --> Processus inexistant
-
+void proc_kill_management(pid_t pid_to_sign, int signal); // Y compris avec l'affichage des msg d'erreur en "live". NB : singal = SIGKILL, SIGTERM, ...
 
 
 
@@ -38,15 +36,15 @@ void ui(const char main_filename[], int *stop_prog) {
     nodelay(stdscr, TRUE); // getch non bloquant
 
     // Boucle d'affichage graphique
-    int running = 1;
-    int pid_selected = 1;
-    while(running) {
+
+    pid_t pid_selected = 1;
+    while(!(*stop_prog)) {
 
         // Gestion des touches pressées
-        int user_input = getchar();
+        int user_input = getch();
         switch(user_input) {
             case 'q':
-                running = 0; // Stopper tout le programme, y compris les autres thread (à gérer dans le manage)
+                *stop_prog = 1;
                 break;
             case KEY_UP:
                 // déplacer la sélection vers le haut
@@ -67,19 +65,18 @@ void ui(const char main_filename[], int *stop_prog) {
                 // F4 : Rechercher un processus
                 break;
             case KEY_F(5):
-                // F5 : Mettre un processus en pause
+                proc_kill_management(pid_selected, SIGSTOP);
                 break;
             case KEY_F(6):
-                // F6 : Arrêter un processus
+                proc_kill_management(pid_selected, SIGTERM);
                 break;
             case KEY_F(7):
-                // F7 : Tuer un processus
+                proc_kill_management(pid_selected, SIGKILL);
                 break;
             case KEY_F(8):
-                // F8 : Redémarrer un processus
+                proc_kill_management(pid_selected, SIGCONT);
                 break;
         }
-
         // Fin gestion des touches pressées
 
         // Dessin de l'en-tête (PID, PPID, ...) et du bas de page (Avec les touches F1, F2, ...)
@@ -91,48 +88,26 @@ void ui(const char main_filename[], int *stop_prog) {
 
 
 // Gère l'arret, mise en pause, etc des processus, en plus d'afficher les messages d'erreur directement dans le ncursive
-void proc_kill_management(int pid_to_sign, int signal) {
-    int proc_good = can_signal(pid);
-
-    if(proc_good == 0) {
-        // ERREUR --> Pas les droits, à écrire dans ncursives
+void proc_kill_management(pid_t pid_to_sign, int signal) {
+    if(kill(pid_to_sign, signal) == -1) {
+        int err = errno;
+        write_error("Erreur avec le prog_kill_management() dans ui()", err);
+        // + msg dans ncursives (avec errno) ?
         return;
     }
-
-    if(proc_good == -1) {
-        // ERREUR --> Processus inexistant, à écrire dans ncursives
-        return;
-    }
-
     switch(signal) {
         case SIGSTOP:
-            kill(pid, signal);
-            // Afficher dans ncursives
+            // message dans ncursiece --> Processus mis en pause
             break;
-        
         case SIGCONT:
-            kill(pid, signal);
-            // Afficher dans ncursives
+            // message dans ncursiece --> Processus redémmaré
             break;
-
-        case SIGKILL:
-            kill(pid, signal);
-            // Afficher dans ncursives
-            break;
-        
         case SIGTERM:
-            kill(pid, signal);
-            // Afficher dans ncursives
+            // message dans ncursiece --> Processus terminé/arrété proprement
+            break;
+        case SIGKILL:
+            // message dans ncursiece --> Processus tué
             break;
     }
-}
-
-
-
-// Vérifie si on peut envoyer un signal au processus
-int can_signal(int pid) {
-    if (kill(pid, 0) == 0) return 1;        // OK
-    if (errno == EPERM) return 0;          // Pas les droits
-    if (errno == ESRCH) return -1;         // Processus n'existe pas
-    return -2;                             // Autre erreur
+    return;
 }
