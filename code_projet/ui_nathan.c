@@ -90,7 +90,7 @@ int check_seven_colons(const char *text) {
     return (colon_count == 7);
 }
 
-/* Count how many lines are in a file */
+/* Count how many VALID lines are in a file (skip comments and invalid lines) */
 int count_lines_in_file(const char *filename) {
     FILE *file = fopen(filename, "r");
 
@@ -99,9 +99,24 @@ int count_lines_in_file(const char *filename) {
     }
 
     int line_count = 0;
-    char buffer[256];
+    char buffer[512];
 
     while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        /* Clean the line */
+        char line_copy[512];
+        strcpy(line_copy, buffer);
+        clean_string(line_copy);
+
+        /* Skip empty lines and comments */
+        if (strlen(line_copy) == 0 || line_copy[0] == '#') {
+            continue;
+        }
+
+        /* Skip lines with wrong format */
+        if (!check_seven_colons(line_copy)) {
+            continue;
+        }
+
         line_count++;
     }
 
@@ -112,12 +127,12 @@ int count_lines_in_file(const char *filename) {
 /* ===================== UI FUNCTIONS ===================== */
 
 /* Show a popup message window */
-void show_popup_message(const char *message) {
+void show_popup_message(const char *message, const char *pid) {
     int screen_height, screen_width;
     getmaxyx(stdscr, screen_height, screen_width);
 
     int message_lines = count_lines_in_string(message);
-    int popup_height = message_lines + 4;
+    int popup_height = message_lines + 6;
     int popup_width = 60;
 
     int popup_y = (screen_height - popup_height) / 2;
@@ -137,6 +152,13 @@ void show_popup_message(const char *message) {
         mvwprintw(popup_window, line_number, 2, "%s", current_line);
         line_number++;
         current_line = strtok(NULL, "\n");
+    }
+
+    /* Display the PID */
+    if (pid != NULL && strlen(pid) > 0) {
+        mvwprintw(popup_window, line_number + 1, 2, "Selected PID: %s", pid);
+    } else {
+        mvwprintw(popup_window, line_number + 1, 2, "No process selected");
     }
 
     mvwprintw(popup_window, popup_height - 2, 2, "Press any key to continue...");
@@ -245,7 +267,7 @@ void draw_footer_window(WINDOW* footer_window) {
 }
 
 /* Draw the content window with file data */
-void draw_content_window(WINDOW* content_window, const char *filename, int start_line, int highlight_line) {
+void draw_content_window(WINDOW* content_window, const char *filename, int start_line, int highlight_line, char *current_pid) {
     if (content_window == NULL || filename == NULL) {
         return;
     }
@@ -258,6 +280,13 @@ void draw_content_window(WINDOW* content_window, const char *filename, int start
     /* Clear window */
     werase(content_window);
     wbkgd(content_window, COLOR_PAIR(3));
+
+    /* Calculate max lines we can display */
+    int max_display_lines = window_height - 4;  /* -4 for header, separator, and borders */
+
+    /* Ensure highlight_line is within bounds */
+    if (highlight_line < 0) highlight_line = 0;
+    if (highlight_line >= max_display_lines) highlight_line = max_display_lines - 1;
 
     /* Column widths for the table */
     int column_widths[] = {6, 6, 6, 12, 6, 6, 14, 20};
@@ -307,19 +336,13 @@ void draw_content_window(WINDOW* content_window, const char *filename, int start
 
     /* Read and display file contents */
     char line_buffer[512];
-    int current_file_line = 0;
+    int lines_skipped = 0;
+    int lines_displayed = 0;
     int current_display_line = 3;
 
-    /* Skip lines to reach start_line */
-    while (current_file_line < start_line && fgets(line_buffer, sizeof(line_buffer), file) != NULL) {
-        current_file_line++;
-    }
-
-    /* Display visible lines */
+    /* Read file line by line */
     while (fgets(line_buffer, sizeof(line_buffer), file) != NULL &&
            current_display_line < window_height - 1) {
-
-        current_file_line++;
 
         /* Clean the line */
         clean_string(line_buffer);
@@ -331,15 +354,26 @@ void draw_content_window(WINDOW* content_window, const char *filename, int start
 
         /* Check if line has correct format */
         if (!check_seven_colons(line_buffer)) {
-            mvwprintw(content_window, current_display_line, 1, "Invalid format");
-            current_display_line++;
             continue;
+        }
+
+        /* Skip lines at the beginning (start_line) */
+        if (lines_skipped < start_line) {
+            lines_skipped++;
+            continue;
+        }
+
+        /* Stop if we've displayed enough lines */
+        if (lines_displayed >= max_display_lines) {
+            break;
         }
 
         /* Split line into fields */
         char fields[8][64];
         int field_count = 0;
-        char *token = strtok(line_buffer, ":");
+        char line_copy[512];
+        strcpy(line_copy, line_buffer);
+        char *token = strtok(line_copy, ":");
 
         while (token != NULL && field_count < 8) {
             strncpy(fields[field_count], token, 63);
@@ -349,8 +383,6 @@ void draw_content_window(WINDOW* content_window, const char *filename, int start
         }
 
         if (field_count != 8) {
-            mvwprintw(content_window, current_display_line, 1, "Missing fields");
-            current_display_line++;
             continue;
         }
 
@@ -373,8 +405,12 @@ void draw_content_window(WINDOW* content_window, const char *filename, int start
         }
 
         /* Highlight current line */
-        if ((current_display_line - 3) == highlight_line) {
+        if (lines_displayed == highlight_line) {
             wattron(content_window, A_REVERSE);
+            /* Store the PID */
+            if (current_pid != NULL) {
+                strcpy(current_pid, fields[0]);
+            }
         }
 
         /* Display the line */
@@ -389,11 +425,12 @@ void draw_content_window(WINDOW* content_window, const char *filename, int start
             column_widths[6], time_string,
             column_widths[7], fields[7]);
 
-        if ((current_display_line - 3) == highlight_line) {
+        if (lines_displayed == highlight_line) {
             wattroff(content_window, A_REVERSE);
         }
 
         current_display_line++;
+        lines_displayed++;
     }
 
     fclose(file);
@@ -411,7 +448,7 @@ void draw_content_window(WINDOW* content_window, const char *filename, int start
 /* Function to completely redraw the interface */
 void redraw_interface(WINDOW* header_window, WINDOW* content_window, WINDOW* footer_window,
                       char* tab_files[], int current_tab, int tab_count,
-                      int start_line, int highlight_line) {
+                      int start_line, int highlight_line, char *current_pid) {
     /* Clear stdscr first */
     clear();
     refresh();
@@ -421,7 +458,7 @@ void redraw_interface(WINDOW* header_window, WINDOW* content_window, WINDOW* foo
     draw_footer_window(footer_window);
 
     if (tab_count > 0 && current_tab < tab_count && tab_files[current_tab] != NULL) {
-        draw_content_window(content_window, tab_files[current_tab], start_line, highlight_line);
+        draw_content_window(content_window, tab_files[current_tab], start_line, highlight_line, current_pid);
     } else {
         werase(content_window);
         mvwprintw(content_window, 1, 1, "No files to display");
@@ -469,6 +506,7 @@ int start_user_interface(char* tab_files[], int tab_count) {
     int highlight_line = 0;
     int line_count = 0;
     int current_tab = 0;
+    char current_pid[64] = "";  /* Stocker le PID comme chaîne de caractères */
 
     /* Get line count for first tab */
     if (tab_count > 0 && tab_files[current_tab] != NULL) {
@@ -478,7 +516,7 @@ int start_user_interface(char* tab_files[], int tab_count) {
     /* Initial display - draw everything */
     redraw_interface(header_window, content_window, footer_window,
                     tab_files, current_tab, tab_count,
-                    start_line, highlight_line);
+                    start_line, highlight_line, current_pid);
 
     /* Main loop */
     int program_running = 1;
@@ -524,7 +562,7 @@ int start_user_interface(char* tab_files[], int tab_count) {
             /* Redraw everything */
             redraw_interface(header_window, content_window, footer_window,
                             tab_files, current_tab, tab_count,
-                            start_line, highlight_line);
+                            start_line, highlight_line, current_pid);
         }
 
         /* Get user input */
@@ -537,24 +575,44 @@ int start_user_interface(char* tab_files[], int tab_count) {
                     program_running = 0;
                     break;
 
+                //Navigate Process
                 case KEY_UP:
                     if (highlight_line > 0) {
                         highlight_line--;
                     } else if (start_line > 0) {
                         start_line--;
                     }
-                    draw_content_window(content_window, tab_files[current_tab], start_line, highlight_line);
+                    draw_content_window(content_window, tab_files[current_tab], start_line, highlight_line, current_pid);
                     break;
 
                 case KEY_DOWN:
-                    if (highlight_line <= (content_height - 5)) {
-                        highlight_line++;
-                    } else if (start_line + (content_height - 5) < line_count) {
-                        start_line++;
+                    {
+                        /* Calculate max display lines in current window */
+                        int max_display = content_height - 4;
+
+                        /* Check if we're at the end of the file */
+                        if (start_line + highlight_line >= line_count - 1) {
+                            /* Already at last line, can't go further */
+                            break;
+                        }
+
+                        /* Try to move highlight down within visible area */
+                        if (highlight_line < max_display - 1) {
+                            /* Check there's actually a line to move to */
+                            if (start_line + highlight_line + 1 < line_count) {
+                                highlight_line++;
+                            }
+                        }
+                        /* Otherwise, scroll down */
+                        else if (start_line + max_display < line_count) {
+                            start_line++;
+                            /* Keep highlight at the same visual position (bottom of screen) */
+                        }
+                        draw_content_window(content_window, tab_files[current_tab], start_line, highlight_line, current_pid);
                     }
-                    draw_content_window(content_window, tab_files[current_tab], start_line, highlight_line);
                     break;
 
+                //Manage functions keys
                 case KEY_F(1):
                     show_popup_message(
                     "F1 : Help\n"
@@ -565,12 +623,11 @@ int start_user_interface(char* tab_files[], int tab_count) {
                 "F6 : Terminate the process\n"
                 "F7 : Kill the process\n"
                 "F8 : Resume the process\n"
-                "Q : Quit\n"
-                    );
+                "Q : Quit\n" , current_pid);
                     /* Redraw after popup */
                     redraw_interface(header_window, content_window, footer_window,
                                     tab_files, current_tab, tab_count,
-                                    start_line, highlight_line);
+                                    start_line, highlight_line, current_pid);
                     break;
 
                 case KEY_F(2): case KEY_LEFT:
@@ -583,7 +640,7 @@ int start_user_interface(char* tab_files[], int tab_count) {
                         }
                         redraw_interface(header_window, content_window, footer_window,
                                         tab_files, current_tab, tab_count,
-                                        start_line, highlight_line);
+                                        start_line, highlight_line, current_pid);
                     }
                 break;
 
@@ -597,9 +654,15 @@ int start_user_interface(char* tab_files[], int tab_count) {
                         }
                         redraw_interface(header_window, content_window, footer_window,
                                         tab_files, current_tab, tab_count,
-                                        start_line, highlight_line);
+                                        start_line, highlight_line, current_pid);
                     }
                     break;
+
+                case KEY_F(4): /*search*/ break;
+                case KEY_F(5): /*stop*/break;
+                case KEY_F(6): /*terminate*/break;
+                case KEY_F(7): /*kill*/break;
+                case KEY_F(8): /*resume*/break;
             }
         }
     }
